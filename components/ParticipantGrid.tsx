@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MicOff, VideoOff } from "lucide-react"
 import { useEffect, useRef } from "react"
+import { ScreenShareView } from "./ScreenShareView"
+import { useState } from "react"
 
 interface ParticipantGridProps {
   participants: Map<string, any>
@@ -12,6 +14,10 @@ interface ParticipantGridProps {
 
 export function ParticipantGrid({ participants }: ParticipantGridProps) {
   const participantArray = Array.from(participants.values())
+  const [fullscreenScreenShare, setFullscreenScreenShare] = useState<string | null>(null)
+
+  const screenSharingParticipants = participantArray.filter((p) => p.screenShareOn)
+  const regularParticipants = participantArray.filter((p) => !p.screenShareOn)
 
   const getGridCols = (count: number) => {
     if (count === 1) return "grid-cols-1"
@@ -22,10 +28,39 @@ export function ParticipantGrid({ participants }: ParticipantGridProps) {
   }
 
   return (
-    <div className={`grid gap-4 h-full ${getGridCols(participantArray.length)}`}>
-      {participantArray.map((participant) => (
-        <ParticipantTile key={participant.id} participantId={participant.id} />
-      ))}
+    <div className="flex flex-col h-full gap-4">
+      {/* Screen Share Section */}
+      {screenSharingParticipants.length > 0 && (
+        <div className="flex-1 min-h-0">
+          <div
+            className="grid gap-4 h-full"
+            style={{ gridTemplateColumns: `repeat(${Math.min(screenSharingParticipants.length, 2)}, 1fr)` }}
+          >
+            {screenSharingParticipants.map((participant) => (
+              <ScreenShareView
+                key={`screen-${participant.id}`}
+                participantId={participant.id}
+                isFullscreen={fullscreenScreenShare === participant.id}
+                onToggleFullscreen={() =>
+                  setFullscreenScreenShare(fullscreenScreenShare === participant.id ? null : participant.id)
+                }
+                onClose={() => setFullscreenScreenShare(null)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Regular Participants Grid */}
+      {regularParticipants.length > 0 && (
+        <div className={screenSharingParticipants.length > 0 ? "h-48" : "flex-1"}>
+          <div className={`grid gap-4 h-full ${getGridCols(regularParticipants.length)}`}>
+            {regularParticipants.map((participant) => (
+              <ParticipantTile key={participant.id} participantId={participant.id} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

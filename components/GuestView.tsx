@@ -4,15 +4,26 @@ import { useState } from "react"
 import { useMeeting } from "@videosdk.live/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Mic, MicOff, Video, VideoOff, Users, MessageSquare, Phone } from "lucide-react"
+import { Mic, MicOff, Video, VideoOff, Users, MessageSquare, Phone, Monitor, MonitorOff } from "lucide-react"
 import { ParticipantGrid } from "./ParticipantGrid"
 import { ChatPanel } from "./ChatPanel"
 import { ParticipantsList } from "./ParticipantsList"
+import { ScreenShareNotification } from "./ScreenShareNotification"
 
 export function GuestView() {
-  const { participants, localMicOn, localWebcamOn, toggleMic, toggleWebcam, leave } = useMeeting()
+  const {
+    participants,
+    localMicOn,
+    localWebcamOn,
+    localScreenShareOn,
+    toggleMic,
+    toggleWebcam,
+    toggleScreenShare,
+    leave,
+  } = useMeeting()
 
   const [activePanel, setActivePanel] = useState<"participants" | "chat" | null>(null)
+  const [focusedScreenShare, setFocusedScreenShare] = useState<string | null>(null)
   const participantCount = participants.size
 
   return (
@@ -26,6 +37,12 @@ export function GuestView() {
             <Badge variant="outline" className="border-blue-400 text-blue-400">
               Guest
             </Badge>
+            {localScreenShareOn && (
+              <Badge variant="secondary" className="bg-blue-600">
+                <Monitor className="w-4 h-4 mr-1" />
+                Sharing Screen
+              </Badge>
+            )}
             <Badge variant="outline">
               {participantCount} participant{participantCount !== 1 ? "s" : ""}
             </Badge>
@@ -56,6 +73,16 @@ export function GuestView() {
               className="rounded-full w-12 h-12"
             >
               {localWebcamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+            </Button>
+
+            <Button
+              variant={localScreenShareOn ? "secondary" : "outline"}
+              size="lg"
+              onClick={toggleScreenShare}
+              className="rounded-full w-12 h-12"
+              title={localScreenShareOn ? "Stop Screen Share" : "Start Screen Share"}
+            >
+              {localScreenShareOn ? <MonitorOff className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
             </Button>
 
             <Button variant="destructive" size="lg" onClick={leave} className="rounded-full w-12 h-12">
@@ -93,6 +120,13 @@ export function GuestView() {
           {activePanel === "chat" && <ChatPanel />}
         </div>
       </div>
+      {/* Screen Share Notifications */}
+      <ScreenShareNotification
+        onViewScreenShare={(participantId) => {
+          setFocusedScreenShare(participantId)
+          setActivePanel(null) // Close other panels to focus on screen share
+        }}
+      />
     </div>
   )
 }

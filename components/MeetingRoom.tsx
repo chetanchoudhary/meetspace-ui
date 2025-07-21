@@ -1,97 +1,94 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { MeetingProvider, useMeeting } from "@videosdk.live/react-sdk"
+import { MeetingProvider } from "@videosdk.live/react-sdk"
+import { PreMeetingLobby } from "./PreMeetingLobby"
+import { WaitingRoom } from "./WaitingRoom"
 import { HostView } from "./HostView"
 import { GuestView } from "./GuestView"
-import { WaitingRoom } from "./WaitingRoom"
-import { PreMeetingLobby } from "./PreMeetingLobby"
+
+type MeetingState = "lobby" | "waiting" | "joined"
+type UserRole = "host" | "guest"
+
+interface LobbySettings {
+  displayName: string
+  audioEnabled: boolean
+  videoEnabled: boolean
+  selectedCamera?: string
+  selectedMicrophone?: string
+  selectedSpeaker?: string
+}
 
 export function MeetingRoom() {
   const searchParams = useSearchParams()
-  const token = searchParams.get("token")
-  const roomId = searchParams.get("roomid")
-  const userName = searchParams.get("name")
+  const [meetingState, setMeetingState] = useState<MeetingState>("lobby")
+  const [userRole, setUserRole] = useState<UserRole>("guest")
+  const [lobbySettings, setLobbySettings] = useState<LobbySettings>({
+    displayName: searchParams?.get("name") || "Anonymous",
+    audioEnabled: true,
+    videoEnabled: true,
+  })
 
-  if (!token || !roomId || !userName) {
+  const token = searchParams?.get("token")
+  const meetingId = searchParams?.get("roomid")
+
+  useEffect(() => {
+    if (!token || !meetingId) {
+      console.error("Missing required parameters: token and roomid")
+    }
+  }, [token, meetingId])
+
+  const handleJoinFromLobby = (settings: LobbySettings) => {
+    setLobbySettings(settings)
+    setMeetingState("waiting")
+  }
+
+  const handleMeetingJoined = (role: UserRole) => {
+    setUserRole(role)
+    setMeetingState("joined")
+  }
+
+  const handleLeaveMeeting = () => {
+    setMeetingState("lobby")
+    setUserRole("guest")
+  }
+
+  if (!token || !meetingId) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-white">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Invalid Meeting Link</h1>
-          <p>Please check your meeting URL and try again.</p>
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Meeting Link</h1>
+          <p className="text-gray-600">
+            Please check your meeting URL and ensure it includes both token and roomid parameters.
+          </p>
         </div>
       </div>
     )
+  }
+
+  if (meetingState === "lobby") {
+    return <PreMeetingLobby initialSettings={lobbySettings} onJoinMeeting={handleJoinFromLobby} />
   }
 
   return (
     <MeetingProvider
       config={{
-        meetingId: roomId,
-        micEnabled: false,
-        webcamEnabled: false,
-        name: userName,
+        meetingId,
+        micEnabled: lobbySettings.audioEnabled,
+        webcamEnabled: lobbySettings.videoEnabled,
+        name: lobbySettings.displayName,
+        mode: "CONFERENCE",
       }}
       token={token}
     >
-      <MeetingContainer />
+      {meetingState === "waiting" ? (
+        <WaitingRoom onMeetingJoined={handleMeetingJoined} onLeaveMeeting={handleLeaveMeeting} userRole={userRole} />
+      ) : userRole === "host" ? (
+        <HostView onLeaveMeeting={handleLeaveMeeting} />
+      ) : (
+        <GuestView onLeaveMeeting={handleLeaveMeeting} />
+      )}
     </MeetingProvider>
   )
-}
-
-function MeetingContainer() {
-  const { meeting, participants } = useMeeting()
-  const [isHost, setIsHost] = useState(false)
-  const [meetingState, setMeetingState] = useState<"lobby" | "waiting" | "joined" | "left">("lobby")
-  const [lobbySettings, setLobbySettings] = useState({
-    displayName: "",
-    micEnabled: false,
-    webcamEnabled: false,
-    selectedMicId: "",
-    selectedWebcamId: "",
-    selectedSpeakerId: "",
-  })
-
-  useEffect(() => {
-    if (meeting) {
-      // Simple host detection - first participant
-      const participantArray = Array.from(participants.values())
-      setIsHost(participantArray.length <= 1)
-
-      meeting.on("meeting-joined", () => {
-        setMeetingState("joined")
-      })
-
-      meeting.on("meeting-left", () => {
-        setMeetingState("left")
-      })
-    }
-  }, [meeting, participants])
-
-  const handleLobbyComplete = (settings: typeof lobbySettings) => {
-    setLobbySettings(settings)
-    setMeetingState("waiting")
-  }
-
-  if (meetingState === "lobby") {
-    return <PreMeetingLobby onComplete={handleLobbyComplete} />
-  }
-
-  if (meetingState === "waiting") {
-    return <WaitingRoom isHost={isHost} lobbySettings={lobbySettings} />
-  }
-
-  if (meetingState === "left") {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-white">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Meeting Ended</h1>
-          <p>Thank you for joining the meeting.</p>
-        </div>
-      </div>
-    )
-  }
-
-  return isHost ? <HostView /> : <GuestView />
 }

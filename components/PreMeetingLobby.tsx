@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,146 +8,150 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import {
-  Video,
-  VideoOff,
-  Mic,
-  MicOff,
-  Volume2,
-  Settings,
-  User,
-  Camera,
-  Headphones,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-} from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Camera, Mic, MicOff, CameraOff, Volume2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+
+interface LobbySettings {
+  displayName: string
+  audioEnabled: boolean
+  videoEnabled: boolean
+  selectedCamera?: string
+  selectedMicrophone?: string
+  selectedSpeaker?: string
+}
 
 interface PreMeetingLobbyProps {
-  onComplete: (settings: {
-    displayName: string
-    micEnabled: boolean
-    webcamEnabled: boolean
-    selectedMicId: string
-    selectedWebcamId: string
-    selectedSpeakerId: string
-  }) => void
+  initialSettings: LobbySettings
+  onJoinMeeting: (settings: LobbySettings) => void
 }
 
-interface MediaDevice {
-  deviceId: string
-  label: string
-  kind: string
-}
-
-export function PreMeetingLobby({ onComplete }: PreMeetingLobbyProps) {
-  const searchParams = useSearchParams()
-  const userName = searchParams.get("name") || ""
-
-  // State
-  const [displayName, setDisplayName] = useState(userName)
-  const [micEnabled, setMicEnabled] = useState(false)
-  const [webcamEnabled, setWebcamEnabled] = useState(false)
-  const [audioLevel, setAudioLevel] = useState(0)
-  const [devices, setDevices] = useState<MediaDevice[]>([])
-  const [selectedMicId, setSelectedMicId] = useState("")
-  const [selectedWebcamId, setSelectedWebcamId] = useState("")
-  const [selectedSpeakerId, setSelectedSpeakerId] = useState("")
-  const [permissionsGranted, setPermissionsGranted] = useState(false)
-  const [isTestingAudio, setIsTestingAudio] = useState(false)
-  const [deviceTestResults, setDeviceTestResults] = useState({
-    camera: "untested" as "untested" | "success" | "error",
-    microphone: "untested" as "untested" | "success" | "error",
-    speaker: "untested" as "untested" | "success" | "error",
+export function PreMeetingLobby({ initialSettings, onJoinMeeting }: PreMeetingLobbyProps) {
+  const [settings, setSettings] = useState<LobbySettings>(initialSettings)
+  const [devices, setDevices] = useState<{
+    cameras: MediaDeviceInfo[]
+    microphones: MediaDeviceInfo[]
+    speakers: MediaDeviceInfo[]
+  }>({
+    cameras: [],
+    microphones: [],
+    speakers: [],
   })
 
-  // Refs
+  const [deviceStatus, setDeviceStatus] = useState<{
+    camera: "testing" | "success" | "error" | "idle"
+    microphone: "testing" | "success" | "error" | "idle"
+    speaker: "testing" | "success" | "error" | "idle"
+  }>({
+    camera: "idle",
+    microphone: "idle",
+    speaker: "idle",
+  })
+
+  const [audioLevel, setAudioLevel] = useState(0)
+  const [permissionsGranted, setPermissionsGranted] = useState(false)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const animationFrameRef = useRef<number>()
 
-  // Get available devices
-  const getDevices = async () => {
-    try {
-      const deviceList = await navigator.mediaDevices.enumerateDevices()
-      const formattedDevices: MediaDevice[] = deviceList.map((device) => ({
-        deviceId: device.deviceId,
-        label: device.label || `${device.kind} ${device.deviceId.slice(0, 8)}`,
-        kind: device.kind,
-      }))
-      setDevices(formattedDevices)
+  useEffect(() => {
+    requestPermissions()
+    return () => {
+      cleanup()
+    }
+  }, [])
 
-      // Set default devices
-      const defaultMic = formattedDevices.find((d) => d.kind === "audioinput")
-      const defaultCamera = formattedDevices.find((d) => d.kind === "videoinput")
-      const defaultSpeaker = formattedDevices.find((d) => d.kind === "audiooutput")
-
-      if (defaultMic && !selectedMicId) setSelectedMicId(defaultMic.deviceId)
-      if (defaultCamera && !selectedWebcamId) setSelectedWebcamId(defaultCamera.deviceId)
-      if (defaultSpeaker && !selectedSpeakerId) setSelectedSpeakerId(defaultSpeaker.deviceId)
-    } catch (error) {
-      console.error("Error getting devices:", error)
+  const cleanup = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close()
     }
   }
 
-  // Request permissions
   const requestPermissions = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       })
-      stream.getTracks().forEach((track) => track.stop())
+      streamRef.current = stream
       setPermissionsGranted(true)
-      await getDevices()
+      await enumerateDevices()
+      await testDevices()
     } catch (error) {
       console.error("Permission denied:", error)
       setPermissionsGranted(false)
     }
   }
 
-  // Start video preview
-  const startVideoPreview = async () => {
+  const enumerateDevices = async () => {
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
+      const deviceList = await navigator.mediaDevices.enumerateDevices()
+      const cameras = deviceList.filter((device) => device.kind === "videoinput")
+      const microphones = deviceList.filter((device) => device.kind === "audioinput")
+      const speakers = deviceList.filter((device) => device.kind === "audiooutput")
+
+      setDevices({ cameras, microphones, speakers })
+
+      // Set default devices
+      if (cameras.length > 0 && !settings.selectedCamera) {
+        setSettings((prev) => ({ ...prev, selectedCamera: cameras[0].deviceId }))
       }
-
-      const constraints: MediaStreamConstraints = {
-        video: webcamEnabled ? { deviceId: selectedWebcamId } : false,
-        audio: micEnabled ? { deviceId: selectedMicId } : false,
+      if (microphones.length > 0 && !settings.selectedMicrophone) {
+        setSettings((prev) => ({ ...prev, selectedMicrophone: microphones[0].deviceId }))
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      streamRef.current = stream
-
-      if (videoRef.current && webcamEnabled) {
-        videoRef.current.srcObject = stream
-        setDeviceTestResults((prev) => ({ ...prev, camera: "success" }))
-      }
-
-      if (micEnabled) {
-        setupAudioAnalyzer(stream)
-        setDeviceTestResults((prev) => ({ ...prev, microphone: "success" }))
+      if (speakers.length > 0 && !settings.selectedSpeaker) {
+        setSettings((prev) => ({ ...prev, selectedSpeaker: speakers[0].deviceId }))
       }
     } catch (error) {
-      console.error("Error starting preview:", error)
-      if (webcamEnabled) {
-        setDeviceTestResults((prev) => ({ ...prev, camera: "error" }))
-      }
-      if (micEnabled) {
-        setDeviceTestResults((prev) => ({ ...prev, microphone: "error" }))
-      }
+      console.error("Error enumerating devices:", error)
     }
   }
 
-  // Setup audio analyzer for level detection
-  const setupAudioAnalyzer = (stream: MediaStream) => {
+  const testDevices = async () => {
+    await testCamera()
+    await testMicrophone()
+    await testSpeaker()
+  }
+
+  const testCamera = async () => {
+    setDeviceStatus((prev) => ({ ...prev, camera: "testing" }))
     try {
+      const constraints = {
+        video: settings.selectedCamera ? { deviceId: settings.selectedCamera } : true,
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+
+      setDeviceStatus((prev) => ({ ...prev, camera: "success" }))
+
+      // Stop previous stream
+      if (streamRef.current) {
+        streamRef.current.getVideoTracks().forEach((track) => track.stop())
+      }
+      streamRef.current = stream
+    } catch (error) {
+      console.error("Camera test failed:", error)
+      setDeviceStatus((prev) => ({ ...prev, camera: "error" }))
+    }
+  }
+
+  const testMicrophone = async () => {
+    setDeviceStatus((prev) => ({ ...prev, microphone: "testing" }))
+    try {
+      const constraints = {
+        audio: settings.selectedMicrophone ? { deviceId: settings.selectedMicrophone } : true,
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+
+      // Setup audio analysis
       audioContextRef.current = new AudioContext()
       analyserRef.current = audioContextRef.current.createAnalyser()
       const source = audioContextRef.current.createMediaStreamSource(stream)
@@ -162,359 +165,331 @@ export function PreMeetingLobby({ onComplete }: PreMeetingLobbyProps) {
         if (analyserRef.current) {
           analyserRef.current.getByteFrequencyData(dataArray)
           const average = dataArray.reduce((a, b) => a + b) / bufferLength
-          setAudioLevel(Math.min(100, (average / 128) * 100))
-          animationFrameRef.current = requestAnimationFrame(updateAudioLevel)
+          setAudioLevel(Math.round((average / 255) * 100))
+          requestAnimationFrame(updateAudioLevel)
         }
       }
       updateAudioLevel()
+
+      setDeviceStatus((prev) => ({ ...prev, microphone: "success" }))
     } catch (error) {
-      console.error("Error setting up audio analyzer:", error)
+      console.error("Microphone test failed:", error)
+      setDeviceStatus((prev) => ({ ...prev, microphone: "error" }))
     }
   }
 
-  // Test speaker
   const testSpeaker = async () => {
-    setIsTestingAudio(true)
+    setDeviceStatus((prev) => ({ ...prev, speaker: "testing" }))
     try {
-      const audio = new Audio("/placeholder.svg?height=1&width=1")
-      if (selectedSpeakerId && (audio as any).setSinkId) {
-        await (audio as any).setSinkId(selectedSpeakerId)
+      // Create a test audio element
+      const audio = new Audio("/placeholder.svg") // Using a placeholder, in real app use a test tone
+      if (settings.selectedSpeaker && "setSinkId" in audio) {
+        await (audio as any).setSinkId(settings.selectedSpeaker)
       }
-      await audio.play()
-      setDeviceTestResults((prev) => ({ ...prev, speaker: "success" }))
+      setDeviceStatus((prev) => ({ ...prev, speaker: "success" }))
     } catch (error) {
-      console.error("Error testing speaker:", error)
-      setDeviceTestResults((prev) => ({ ...prev, speaker: "error" }))
-    } finally {
-      setIsTestingAudio(false)
+      console.error("Speaker test failed:", error)
+      setDeviceStatus((prev) => ({ ...prev, speaker: "error" }))
     }
   }
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
+  const handleDeviceChange = async (deviceType: "camera" | "microphone" | "speaker", deviceId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      [`selected${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)}`]: deviceId,
+    }))
+
+    // Re-test the changed device
+    if (deviceType === "camera") {
+      await testCamera()
+    } else if (deviceType === "microphone") {
+      await testMicrophone()
+    } else if (deviceType === "speaker") {
+      await testSpeaker()
     }
-  }, [])
-
-  // Update preview when settings change
-  useEffect(() => {
-    if (permissionsGranted) {
-      startVideoPreview()
-    }
-  }, [webcamEnabled, micEnabled, selectedWebcamId, selectedMicId, permissionsGranted])
-
-  // Initial permission request
-  useEffect(() => {
-    requestPermissions()
-  }, [])
-
-  const handleJoinMeeting = () => {
-    if (!displayName.trim()) {
-      alert("Please enter your display name")
-      return
-    }
-
-    onComplete({
-      displayName: displayName.trim(),
-      micEnabled,
-      webcamEnabled,
-      selectedMicId,
-      selectedWebcamId,
-      selectedSpeakerId,
-    })
   }
 
-  const micDevices = devices.filter((d) => d.kind === "audioinput")
-  const cameraDevices = devices.filter((d) => d.kind === "videoinput")
-  const speakerDevices = devices.filter((d) => d.kind === "audiooutput")
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "success":
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case "error":
+        return <XCircle className="h-4 w-4 text-red-500" />
+      case "testing":
+        return <AlertCircle className="h-4 w-4 text-yellow-500 animate-pulse" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-400" />
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "success":
+        return (
+          <Badge variant="default" className="bg-green-500">
+            Ready
+          </Badge>
+        )
+      case "error":
+        return <Badge variant="destructive">Failed</Badge>
+      case "testing":
+        return <Badge variant="secondary">Testing...</Badge>
+      default:
+        return <Badge variant="outline">Not Tested</Badge>
+    }
+  }
+
+  const canJoinMeeting =
+    permissionsGranted &&
+    deviceStatus.camera !== "error" &&
+    deviceStatus.microphone !== "error" &&
+    settings.displayName.trim().length > 0
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl bg-gray-800 border-gray-700 text-white">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Join Meeting</CardTitle>
-          <p className="text-gray-400 text-center">Test your devices and configure settings before joining</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <Card className="w-full max-w-4xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">Join Meeting</CardTitle>
+          <p className="text-gray-600">Configure your settings before joining</p>
         </CardHeader>
-
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Video Preview */}
-            <div className="space-y-4">
-              <div className="aspect-video bg-gray-700 rounded-lg overflow-hidden relative">
-                {webcamEnabled ? (
-                  <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <VideoOff className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                      <p className="text-gray-400">Camera is off</p>
-                    </div>
-                  </div>
-                )}
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="devices">Devices</TabsTrigger>
+              <TabsTrigger value="testing">Testing</TabsTrigger>
+            </TabsList>
 
-                {/* Audio Level Indicator */}
-                {micEnabled && (
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="bg-black/50 rounded-lg p-2">
-                      <div className="flex items-center space-x-2">
-                        <Mic className="w-4 h-4" />
-                        <Progress value={audioLevel} className="flex-1 h-2" />
-                        <span className="text-xs">{Math.round(audioLevel)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Controls */}
-              <div className="flex justify-center space-x-4">
-                <Button
-                  variant={micEnabled ? "default" : "destructive"}
-                  size="lg"
-                  onClick={() => setMicEnabled(!micEnabled)}
-                  className="rounded-full w-12 h-12"
-                >
-                  {micEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                </Button>
-
-                <Button
-                  variant={webcamEnabled ? "default" : "destructive"}
-                  size="lg"
-                  onClick={() => setWebcamEnabled(!webcamEnabled)}
-                  className="rounded-full w-12 h-12"
-                >
-                  {webcamEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-                </Button>
-              </div>
-            </div>
-
-            {/* Settings Panel */}
-            <div className="space-y-4">
-              <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="profile">
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </TabsTrigger>
-                  <TabsTrigger value="devices">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Devices
-                  </TabsTrigger>
-                  <TabsTrigger value="test">
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Test
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="profile" className="space-y-4">
-                  <div className="space-y-2">
+            <TabsContent value="profile" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
                     <Label htmlFor="displayName">Display Name</Label>
                     <Input
                       id="displayName"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
+                      value={settings.displayName}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, displayName: e.target.value }))}
                       placeholder="Enter your name"
-                      className="bg-gray-700 border-gray-600"
                     />
                   </div>
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="mic-toggle">Microphone</Label>
-                      <Switch id="mic-toggle" checked={micEnabled} onCheckedChange={setMicEnabled} />
+                      <Label htmlFor="camera">Camera</Label>
+                      <Switch
+                        id="camera"
+                        checked={settings.videoEnabled}
+                        onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, videoEnabled: checked }))}
+                      />
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="camera-toggle">Camera</Label>
-                      <Switch id="camera-toggle" checked={webcamEnabled} onCheckedChange={setWebcamEnabled} />
+                      <Label htmlFor="microphone">Microphone</Label>
+                      <Switch
+                        id="microphone"
+                        checked={settings.audioEnabled}
+                        onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, audioEnabled: checked }))}
+                      />
                     </div>
                   </div>
-                </TabsContent>
+                </div>
 
-                <TabsContent value="devices" className="space-y-4">
-                  {!permissionsGranted ? (
-                    <div className="text-center py-8">
-                      <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-400" />
-                      <p className="text-gray-400 mb-4">Camera and microphone permissions are required</p>
-                      <Button onClick={requestPermissions}>
-                        <RefreshCw className="w-4 h-4 mr-2" />
+                <div className="relative">
+                  <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                    {settings.videoEnabled ? (
+                      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <CameraOff className="h-12 w-12 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-4 left-4 flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant={settings.videoEnabled ? "default" : "secondary"}
+                      onClick={() => setSettings((prev) => ({ ...prev, videoEnabled: !prev.videoEnabled }))}
+                    >
+                      {settings.videoEnabled ? <Camera className="h-4 w-4" /> : <CameraOff className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={settings.audioEnabled ? "default" : "secondary"}
+                      onClick={() => setSettings((prev) => ({ ...prev, audioEnabled: !prev.audioEnabled }))}
+                    >
+                      {settings.audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="devices" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <Label>Camera</Label>
+                  <Select
+                    value={settings.selectedCamera}
+                    onValueChange={(value) => handleDeviceChange("camera", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select camera" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devices.cameras.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-2 flex items-center space-x-2">
+                    {getStatusIcon(deviceStatus.camera)}
+                    {getStatusBadge(deviceStatus.camera)}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Microphone</Label>
+                  <Select
+                    value={settings.selectedMicrophone}
+                    onValueChange={(value) => handleDeviceChange("microphone", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select microphone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devices.microphones.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-2 flex items-center space-x-2">
+                    {getStatusIcon(deviceStatus.microphone)}
+                    {getStatusBadge(deviceStatus.microphone)}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Speaker</Label>
+                  <Select
+                    value={settings.selectedSpeaker}
+                    onValueChange={(value) => handleDeviceChange("speaker", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select speaker" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devices.speakers.map((device) => (
+                        <SelectItem key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Speaker ${device.deviceId.slice(0, 8)}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-2 flex items-center space-x-2">
+                    {getStatusIcon(deviceStatus.speaker)}
+                    {getStatusBadge(deviceStatus.speaker)}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="testing" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium">Camera Test</h3>
+                      {getStatusBadge(deviceStatus.camera)}
+                    </div>
+                    <Button onClick={testCamera} disabled={deviceStatus.camera === "testing"} className="w-full">
+                      {deviceStatus.camera === "testing" ? "Testing..." : "Test Camera"}
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium">Microphone Test</h3>
+                      {getStatusBadge(deviceStatus.microphone)}
+                    </div>
+                    <div className="mb-2">
+                      <Label>Audio Level: {audioLevel}%</Label>
+                      <Progress value={audioLevel} className="mt-1" />
+                    </div>
+                    <Button
+                      onClick={testMicrophone}
+                      disabled={deviceStatus.microphone === "testing"}
+                      className="w-full"
+                    >
+                      {deviceStatus.microphone === "testing" ? "Testing..." : "Test Microphone"}
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium">Speaker Test</h3>
+                      {getStatusBadge(deviceStatus.speaker)}
+                    </div>
+                    <Button onClick={testSpeaker} disabled={deviceStatus.speaker === "testing"} className="w-full">
+                      <Volume2 className="h-4 w-4 mr-2" />
+                      {deviceStatus.speaker === "testing" ? "Testing..." : "Test Speaker"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="font-medium mb-2">System Status</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span>Permissions</span>
+                        {permissionsGranted ? (
+                          <Badge variant="default" className="bg-green-500">
+                            Granted
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">Denied</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Camera</span>
+                        {getStatusBadge(deviceStatus.camera)}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Microphone</span>
+                        {getStatusBadge(deviceStatus.microphone)}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Speaker</span>
+                        {getStatusBadge(deviceStatus.speaker)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!permissionsGranted && (
+                    <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
+                      <h4 className="font-medium text-yellow-800 mb-2">Permissions Required</h4>
+                      <p className="text-sm text-yellow-700 mb-3">
+                        Please allow camera and microphone access to join the meeting.
+                      </p>
+                      <Button onClick={requestPermissions} size="sm">
                         Grant Permissions
                       </Button>
                     </div>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label>
-                          <Camera className="w-4 h-4 inline mr-2" />
-                          Camera
-                        </Label>
-                        <Select value={selectedWebcamId} onValueChange={setSelectedWebcamId}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600">
-                            <SelectValue placeholder="Select camera" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cameraDevices.map((device) => (
-                              <SelectItem key={device.deviceId} value={device.deviceId}>
-                                {device.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>
-                          <Mic className="w-4 h-4 inline mr-2" />
-                          Microphone
-                        </Label>
-                        <Select value={selectedMicId} onValueChange={setSelectedMicId}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600">
-                            <SelectValue placeholder="Select microphone" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {micDevices.map((device) => (
-                              <SelectItem key={device.deviceId} value={device.deviceId}>
-                                {device.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>
-                          <Headphones className="w-4 h-4 inline mr-2" />
-                          Speaker
-                        </Label>
-                        <Select value={selectedSpeakerId} onValueChange={setSelectedSpeakerId}>
-                          <SelectTrigger className="bg-gray-700 border-gray-600">
-                            <SelectValue placeholder="Select speaker" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {speakerDevices.map((device) => (
-                              <SelectItem key={device.deviceId} value={device.deviceId}>
-                                {device.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
                   )}
-                </TabsContent>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
 
-                <TabsContent value="test" className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Camera className="w-5 h-5" />
-                        <span>Camera Test</span>
-                      </div>
-                      <Badge
-                        variant={
-                          deviceTestResults.camera === "success"
-                            ? "default"
-                            : deviceTestResults.camera === "error"
-                              ? "destructive"
-                              : "secondary"
-                        }
-                      >
-                        {deviceTestResults.camera === "success" && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {deviceTestResults.camera === "error" && <AlertCircle className="w-3 h-3 mr-1" />}
-                        {deviceTestResults.camera === "success"
-                          ? "Working"
-                          : deviceTestResults.camera === "error"
-                            ? "Failed"
-                            : "Not tested"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Mic className="w-5 h-5" />
-                        <span>Microphone Test</span>
-                      </div>
-                      <Badge
-                        variant={
-                          deviceTestResults.microphone === "success"
-                            ? "default"
-                            : deviceTestResults.microphone === "error"
-                              ? "destructive"
-                              : "secondary"
-                        }
-                      >
-                        {deviceTestResults.microphone === "success" && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {deviceTestResults.microphone === "error" && <AlertCircle className="w-3 h-3 mr-1" />}
-                        {deviceTestResults.microphone === "success"
-                          ? "Working"
-                          : deviceTestResults.microphone === "error"
-                            ? "Failed"
-                            : "Not tested"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Volume2 className="w-5 h-5" />
-                        <span>Speaker Test</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge
-                          variant={
-                            deviceTestResults.speaker === "success"
-                              ? "default"
-                              : deviceTestResults.speaker === "error"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                        >
-                          {deviceTestResults.speaker === "success" && <CheckCircle className="w-3 h-3 mr-1" />}
-                          {deviceTestResults.speaker === "error" && <AlertCircle className="w-3 h-3 mr-1" />}
-                          {deviceTestResults.speaker === "success"
-                            ? "Working"
-                            : deviceTestResults.speaker === "error"
-                              ? "Failed"
-                              : "Not tested"}
-                        </Badge>
-                        <Button size="sm" onClick={testSpeaker} disabled={isTestingAudio}>
-                          {isTestingAudio ? "Testing..." : "Test"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {micEnabled && (
-                    <div className="p-3 bg-gray-700 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm">Audio Level</span>
-                        <span className="text-sm">{Math.round(audioLevel)}%</span>
-                      </div>
-                      <Progress value={audioLevel} className="h-2" />
-                      <p className="text-xs text-gray-400 mt-1">Speak to test your microphone</p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              {/* Join Button */}
-              <Button
-                onClick={handleJoinMeeting}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                size="lg"
-                disabled={!displayName.trim() || !permissionsGranted}
-              >
-                Join Meeting
-              </Button>
-            </div>
+          <div className="mt-8 flex justify-center">
+            <Button onClick={() => onJoinMeeting(settings)} disabled={!canJoinMeeting} size="lg" className="px-8">
+              Join Meeting
+            </Button>
           </div>
         </CardContent>
       </Card>

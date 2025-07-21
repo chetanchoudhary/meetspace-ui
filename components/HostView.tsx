@@ -22,6 +22,7 @@ import { ParticipantGrid } from "./ParticipantGrid"
 import { ChatPanel } from "./ChatPanel"
 import { Whiteboard } from "./Whiteboard"
 import { ParticipantsList } from "./ParticipantsList"
+import { ScreenShareNotification } from "./ScreenShareNotification"
 
 export function HostView() {
   const {
@@ -46,6 +47,7 @@ export function HostView() {
 
   const [activePanel, setActivePanel] = useState<"participants" | "chat" | "whiteboard" | null>(null)
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
+  const [focusedScreenShare, setFocusedScreenShare] = useState<string | null>(null)
 
   const handleApproveEntry = (participantId: string) => {
     meeting?.respondEntry(participantId, "allowed")
@@ -72,6 +74,12 @@ export function HostView() {
             <Badge variant="outline">
               {participantCount} participant{participantCount !== 1 ? "s" : ""}
             </Badge>
+            {localScreenShareOn && (
+              <Badge variant="secondary" className="bg-blue-600">
+                <Monitor className="w-4 h-4 mr-1" />
+                Sharing Screen
+              </Badge>
+            )}
           </div>
 
           {/* Pending Requests */}
@@ -136,6 +144,7 @@ export function HostView() {
               size="lg"
               onClick={toggleScreenShare}
               className="rounded-full w-12 h-12"
+              title={localScreenShareOn ? "Stop Screen Share" : "Start Screen Share"}
             >
               {localScreenShareOn ? <MonitorOff className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
             </Button>
@@ -154,6 +163,13 @@ export function HostView() {
             </Button>
           </div>
         </div>
+        {/* Screen Share Notifications */}
+        <ScreenShareNotification
+          onViewScreenShare={(participantId) => {
+            setFocusedScreenShare(participantId)
+            setActivePanel(null) // Close other panels to focus on screen share
+          }}
+        />
       </div>
 
       {/* Side Panel */}
