@@ -1,50 +1,132 @@
 "use client"
 
-import { useParticipant } from "@videosdk.live/react-sdk"
+import { useRef, useEffect } from "react"
+import { useMeeting, useParticipant } from "@videosdk.live/react-sdk"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MicOff, VideoOff } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScreenShareView } from "./ScreenShareView"
-import { useState } from "react"
+import { Mic, MicOff, Video, VideoOff, Crown, Monitor, User } from "lucide-react"
 
-interface ParticipantGridProps {
-  participants: Map<string, any>
+interface ParticipantTileProps {
+  participantId: string
+  isLocal?: boolean
 }
 
-export function ParticipantGrid({ participants }: ParticipantGridProps) {
-  const participantArray = Array.from(participants.values())
-  const [fullscreenScreenShare, setFullscreenScreenShare] = useState<string | null>(null)
+function ParticipantTile({ participantId, isLocal = false }: ParticipantTileProps) {
+  const { displayName, webcamStream, micOn, webcamOn, screenShareOn, isHost } = useParticipant(participantId)
 
-  const screenSharingParticipants = participantArray.filter((p) => p.screenShareOn)
-  const regularParticipants = participantArray.filter((p) => !p.screenShareOn)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
+  useEffect(() => {
+    if (videoRef.current && webcamStream) {
+      const videoObj = videoRef.current
+      if (videoObj.srcObject !== webcamStream) {
+        videoObj.srcObject = webcamStream
+        videoObj.play().catch(console.error)
+      }
+    }
+  }, [webcamStream])
+
+  const initials =
+    displayName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "U"
+
+  return (
+    <Card className="relative bg-gray-800 border-gray-700 overflow-hidden aspect-video">
+      {/* Video or Avatar */}
+      {webcamOn && webcamStream ? (
+        <video ref={videoRef} autoPlay playsInline muted={isLocal} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-gray-700">
+          <Avatar className="w-16 h-16">
+            <AvatarFallback className="bg-gray-600 text-white text-lg">{initials}</AvatarFallback>
+          </Avatar>
+        </div>
+      )}
+
+      {/* Overlay Info */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+        {/* Top badges */}
+        <div className="absolute top-2 left-2 flex space-x-1">
+          {isHost && (
+            <Badge variant="secondary" className="bg-yellow-600 text-white text-xs">
+              <Crown className="w-3 h-3 mr-1" />
+              Host
+            </Badge>
+          )}
+          {isLocal && (
+            <Badge variant="secondary" className="bg-blue-600 text-white text-xs">
+              You
+            </Badge>
+          )}
+          {screenShareOn && (
+            <Badge variant="secondary" className="bg-green-600 text-white text-xs">
+              <Monitor className="w-3 h-3 mr-1" />
+              Sharing
+            </Badge>
+          )}
+        </div>
+
+        {/* Bottom info */}
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+          <span className="text-white text-sm font-medium truncate">{displayName || "Unknown"}</span>
+
+          <div className="flex space-x-1">
+            <div className={`p-1 rounded ${micOn ? "bg-green-600" : "bg-red-600"}`}>
+              {micOn ? <Mic className="w-3 h-3 text-white" /> : <MicOff className="w-3 h-3 text-white" />}
+            </div>
+
+            <div className={`p-1 rounded ${webcamOn ? "bg-green-600" : "bg-red-600"}`}>
+              {webcamOn ? <Video className="w-3 h-3 text-white" /> : <VideoOff className="w-3 h-3 text-white" />}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function ParticipantGrid() {
+  const { localParticipant, participants } = useMeeting()
+
+  // Get all participants including local
+  const allParticipants = [{ id: "local", ...localParticipant }, ...Array.from(participants.values())]
+
+  // Separate screen sharing participants
+  const screenSharingParticipants = allParticipants.filter((p) => p.screenShareOn)
+  const regularParticipants = allParticipants.filter((p) => !p.screenShareOn)
+
+  // Calculate grid layout
   const getGridCols = (count: number) => {
     if (count === 1) return "grid-cols-1"
-    if (count === 2) return "grid-cols-2"
+    if (count === 2) return "grid-cols-1 md:grid-cols-2"
     if (count <= 4) return "grid-cols-2"
-    if (count <= 6) return "grid-cols-3"
-    return "grid-cols-4"
+    if (count <= 6) return "grid-cols-2 md:grid-cols-3"
+    return "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
   }
 
   return (
-    <div className="flex flex-col h-full gap-4">
-      {/* Screen Share Section */}
+    <div className="h-full flex flex-col space-y-4">
+      {/* Screen Shares Section */}
       {screenSharingParticipants.length > 0 && (
-        <div className="flex-1 min-h-0">
-          <div
-            className="grid gap-4 h-full"
-            style={{ gridTemplateColumns: `repeat(${Math.min(screenSharingParticipants.length, 2)}, 1fr)` }}
-          >
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <Monitor className="w-4 h-4 text-blue-400" />
+            <span className="text-sm font-medium text-gray-300">Screen Shares</span>
+            <Badge variant="outline" className="border-blue-500 text-blue-400">
+              {screenSharingParticipants.length}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {screenSharingParticipants.map((participant) => (
               <ScreenShareView
                 key={`screen-${participant.id}`}
-                participantId={participant.id}
-                isFullscreen={fullscreenScreenShare === participant.id}
-                onToggleFullscreen={() =>
-                  setFullscreenScreenShare(fullscreenScreenShare === participant.id ? null : participant.id)
-                }
-                onClose={() => setFullscreenScreenShare(null)}
+                participantId={participant.id === "local" ? "local" : participant.id}
               />
             ))}
           </div>
@@ -52,94 +134,25 @@ export function ParticipantGrid({ participants }: ParticipantGridProps) {
       )}
 
       {/* Regular Participants Grid */}
-      {regularParticipants.length > 0 && (
-        <div className={screenSharingParticipants.length > 0 ? "h-48" : "flex-1"}>
-          <div className={`grid gap-4 h-full ${getGridCols(regularParticipants.length)}`}>
-            {regularParticipants.map((participant) => (
-              <ParticipantTile key={participant.id} participantId={participant.id} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ParticipantTile({ participantId }: { participantId: string }) {
-  const { webcamStream, micOn, webcamOn, isLocal, displayName, screenShareStream, screenShareOn } =
-    useParticipant(participantId)
-
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const screenShareRef = useRef<HTMLVideoElement>(null)
-
-  useEffect(() => {
-    if (webcamStream && videoRef.current) {
-      const mediaStream = new MediaStream()
-      mediaStream.addTrack(webcamStream.track)
-      videoRef.current.srcObject = mediaStream
-      videoRef.current.play().catch(console.error)
-    }
-  }, [webcamStream])
-
-  useEffect(() => {
-    if (screenShareStream && screenShareRef.current) {
-      const mediaStream = new MediaStream()
-      mediaStream.addTrack(screenShareStream.track)
-      screenShareRef.current.srcObject = mediaStream
-      screenShareRef.current.play().catch(console.error)
-    }
-  }, [screenShareStream])
-
-  return (
-    <Card className="relative bg-gray-800 border-gray-700 overflow-hidden aspect-video">
-      {/* Screen Share Stream */}
-      {screenShareOn && screenShareStream ? (
-        <video ref={screenShareRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-      ) : (
-        <>
-          {/* Webcam Stream */}
-          {webcamOn && webcamStream ? (
-            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted={isLocal} playsInline />
-          ) : (
-            <div className="flex items-center justify-center w-full h-full bg-gray-700">
-              <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center">
-                <span className="text-xl font-semibold text-white">{displayName?.charAt(0)?.toUpperCase() || "U"}</span>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Overlay Info */}
-      <div className="absolute bottom-2 left-2 flex items-center space-x-2">
-        <Badge variant="secondary" className="bg-black/50 text-white">
-          {displayName || "Unknown"}
-          {isLocal && " (You)"}
-        </Badge>
-      </div>
-
-      {/* Audio/Video Status */}
-      <div className="absolute bottom-2 right-2 flex space-x-1">
-        {!micOn && (
-          <div className="bg-red-500 rounded-full p-1">
-            <MicOff className="w-3 h-3 text-white" />
-          </div>
-        )}
-        {!webcamOn && (
-          <div className="bg-red-500 rounded-full p-1">
-            <VideoOff className="w-3 h-3 text-white" />
-          </div>
-        )}
-      </div>
-
-      {/* Screen Share Indicator */}
-      {screenShareOn && (
-        <div className="absolute top-2 left-2">
-          <Badge variant="secondary" className="bg-blue-600 text-white">
-            Screen Sharing
+      <div className="flex-1">
+        <div className="flex items-center space-x-2 mb-2">
+          <User className="w-4 h-4 text-gray-400" />
+          <span className="text-sm font-medium text-gray-300">Participants</span>
+          <Badge variant="outline" className="border-gray-500 text-gray-400">
+            {regularParticipants.length}
           </Badge>
         </div>
-      )}
-    </Card>
+
+        <div className={`grid ${getGridCols(regularParticipants.length)} gap-4 h-full`}>
+          {regularParticipants.map((participant) => (
+            <ParticipantTile
+              key={participant.id}
+              participantId={participant.id === "local" ? "local" : participant.id}
+              isLocal={participant.id === "local"}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

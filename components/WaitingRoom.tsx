@@ -6,20 +6,22 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Loader2, Video, VideoOff, Mic, MicOff } from "lucide-react"
 
+interface LobbySettings {
+  displayName: string
+  micEnabled: boolean
+  webcamEnabled: boolean
+  selectedMicId: string
+  selectedWebcamId: string
+  selectedSpeakerId: string
+}
+
 interface WaitingRoomProps {
   isHost: boolean
-  lobbySettings: {
-    displayName: string
-    micEnabled: boolean
-    webcamEnabled: boolean
-    selectedMicId: string
-    selectedWebcamId: string
-    selectedSpeakerId: string
-  }
+  lobbySettings?: LobbySettings
 }
 
 export function WaitingRoom({ isHost, lobbySettings }: WaitingRoomProps) {
-  const { join, localMicOn, localWebcamOn, toggleMic, toggleWebcam, meeting } = useMeeting({
+  const { join, localMicOn, localWebcamOn, toggleMic, toggleWebcam } = useMeeting({
     onEntryResponded: (decision: string) => {
       if (decision === "denied") {
         setWaitingForApproval(false)
@@ -33,11 +35,13 @@ export function WaitingRoom({ isHost, lobbySettings }: WaitingRoomProps) {
 
   // Apply lobby settings when component mounts
   useEffect(() => {
-    if (lobbySettings.micEnabled !== localMicOn) {
-      toggleMic()
-    }
-    if (lobbySettings.webcamEnabled !== localWebcamOn) {
-      toggleWebcam()
+    if (lobbySettings) {
+      if (lobbySettings.micEnabled !== localMicOn) {
+        toggleMic()
+      }
+      if (lobbySettings.webcamEnabled !== localWebcamOn) {
+        toggleWebcam()
+      }
     }
   }, [lobbySettings, localMicOn, localWebcamOn, toggleMic, toggleWebcam])
 
@@ -49,6 +53,10 @@ export function WaitingRoom({ isHost, lobbySettings }: WaitingRoomProps) {
     join()
   }
 
+  const displayName = lobbySettings?.displayName || "Guest User"
+  const micEnabled = lobbySettings?.micEnabled ?? true
+  const webcamEnabled = lobbySettings?.webcamEnabled ?? true
+
   if (waitingForApproval) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
@@ -59,7 +67,7 @@ export function WaitingRoom({ isHost, lobbySettings }: WaitingRoomProps) {
             <p className="text-gray-400">The host will review your request to join the meeting. Please wait...</p>
             <div className="mt-4 p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-300">
-                Joining as: <span className="font-medium">{lobbySettings.displayName}</span>
+                Joining as: <span className="font-medium">{displayName}</span>
               </p>
             </div>
           </div>
@@ -76,19 +84,15 @@ export function WaitingRoom({ isHost, lobbySettings }: WaitingRoomProps) {
           <p className="text-gray-400">{isHost ? "Ready to start the meeting" : "Ready to join the meeting"}</p>
           <div className="mt-4 p-3 bg-gray-700 rounded-lg">
             <p className="text-sm text-gray-300">
-              Joining as: <span className="font-medium">{lobbySettings.displayName}</span>
+              Joining as: <span className="font-medium">{displayName}</span>
             </p>
             <div className="flex justify-center space-x-4 mt-2">
               <div className="flex items-center space-x-1">
-                {lobbySettings.micEnabled ? (
-                  <Mic className="w-3 h-3 text-green-400" />
-                ) : (
-                  <MicOff className="w-3 h-3 text-red-400" />
-                )}
+                {micEnabled ? <Mic className="w-3 h-3 text-green-400" /> : <MicOff className="w-3 h-3 text-red-400" />}
                 <span className="text-xs">Mic</span>
               </div>
               <div className="flex items-center space-x-1">
-                {lobbySettings.webcamEnabled ? (
+                {webcamEnabled ? (
                   <Video className="w-3 h-3 text-green-400" />
                 ) : (
                   <VideoOff className="w-3 h-3 text-red-400" />
