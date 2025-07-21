@@ -124,10 +124,18 @@ export default function LandingPage() {
             </span>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
-            <a href="#integrations" className="text-gray-600 hover:text-blue-600 transition-colors">Integrations</a>
-            <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors">Pricing</a>
-            <a href="#contact" className="text-gray-600 hover:text-blue-600 transition-colors">Contact</a>
+            <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">
+              Features
+            </a>
+            <a href="#integrations" className="text-gray-600 hover:text-blue-600 transition-colors">
+              Integrations
+            </a>
+            <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
+              Pricing
+            </a>
+            <a href="#contact" className="text-gray-600 hover:text-blue-600 transition-colors">
+              Contact
+            </a>
           </nav>
           <div className="flex items-center space-x-4">
             <Button variant="ghost">Sign In</Button>
@@ -148,11 +156,14 @@ export default function LandingPage() {
             Team Collaboration
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Meetspace is the integrable meeting platform that transforms how organizations connect, collaborate, and create together. 
-            Built for the modern workplace with enterprise-grade security and seamless integrations.
+            Meetspace is the integrable meeting platform that transforms how organizations connect, collaborate, and
+            create together. Built for the modern workplace with enterprise-grade security and seamless integrations.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            >
               Start Free Trial
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
@@ -161,13 +172,13 @@ export default function LandingPage() {
               Watch Demo
             </Button>
           </div>
-          
+
           {/* Hero Image/Video Placeholder */}
           <div className="relative max-w-5xl mx-auto">
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-1">
               <div className="bg-gray-900 rounded-xl overflow-hidden">
-                <img 
-                  src="/placeholder.svg?height=600&width=1000&text=Meetspace+Demo" 
+                <img
+                  src="/placeholder.svg?height=600&width=1000&text=Meetspace+Demo"
                   alt="Meetspace Platform Demo"
                   className="w-full h-auto"
                 />
@@ -190,22 +201,20 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-4">
               {features.map((feature) => (
-                <Card 
+                <Card
                   key={feature.id}
                   className={`cursor-pointer transition-all duration-300 ${
-                    activeFeature === feature.id 
-                      ? 'border-blue-500 shadow-lg bg-blue-50' 
-                      : 'hover:border-gray-300'
+                    activeFeature === feature.id ? "border-blue-500 shadow-lg bg-blue-50" : "hover:border-gray-300"
                   }`}
                   onClick={() => setActiveFeature(feature.id)}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded-lg ${
-                        activeFeature === feature.id 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
+                      <div
+                        className={`p-2 rounded-lg ${
+                          activeFeature === feature.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
                         <feature.icon className="w-5 h-5" />
                       </div>
                       <div>
@@ -223,23 +232,24 @@ export default function LandingPage() {
                 <CardHeader>
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="p-3 bg-blue-600 text-white rounded-lg">
-                      {features.find(f => f.id === activeFeature)?.icon && (\
-                        <features.find(f => f.id === activeFeature).icon className="w-6 h-6\" />
-                      )}
+                      {(() => {
+                        const activeFeatureData = features.find((f) => f.id === activeFeature)
+                        if (activeFeatureData?.icon) {
+                          const IconComponent = activeFeatureData.icon
+                          return <IconComponent className="w-6 h-6" />
+                        }
+                        return null
+                      })()}
                     </div>
-                    <CardTitle className="text-2xl">
-                      {features.find(f => f.id === activeFeature)?.title}
-                    </CardTitle>
+                    <CardTitle className="text-2xl">{features.find((f) => f.id === activeFeature)?.title}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 mb-6">
-                    {features.find(f => f.id === activeFeature)?.details}
-                  </p>
+                  <p className="text-gray-600 mb-6">{features.find((f) => f.id === activeFeature)?.details}</p>
                   <div className="bg-gray-100 rounded-lg p-6 text-center">
-                    <img 
-                      src={`/placeholder.svg?height=300&width=400&text=${features.find(f => f.id === activeFeature)?.title}+Demo`}
-                      alt={`${features.find(f => f.id === activeFeature)?.title} Demo`}
+                    <img
+                      src={`/placeholder.svg?height=300&width=400&text=${features.find((f) => f.id === activeFeature)?.title}+Demo`}
+                      alt={`${features.find((f) => f.id === activeFeature)?.title} Demo`}
                       className="w-full h-auto rounded-lg"
                     />
                   </div>
@@ -318,9 +328,7 @@ export default function LandingPage() {
             <Card className="text-center p-8">
               <Settings className="w-12 h-12 text-blue-600 mx-auto mb-4" />
               <h3 className="text-xl font-bold mb-3">Admin Controls</h3>
-              <p className="text-gray-600 mb-4">
-                Centralized management with granular permissions and policy controls
-              </p>
+              <p className="text-gray-600 mb-4">Centralized management with granular permissions and policy controls</p>
               <ul className="text-sm text-gray-500 space-y-1">
                 <li>• User management</li>
                 <li>• Policy enforcement</li>
@@ -370,12 +378,26 @@ export default function LandingPage() {
             <Card className="p-8 text-center">
               <h3 className="text-2xl font-bold mb-2">Starter</h3>
               <p className="text-gray-600 mb-6">Perfect for small teams</p>
-              <div className="text-4xl font-bold mb-6">$9<span className="text-lg text-gray-500">/user/month</span></div>
+              <div className="text-4xl font-bold mb-6">
+                $9<span className="text-lg text-gray-500">/user/month</span>
+              </div>
               <ul className="space-y-3 mb-8 text-left">
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Up to 25 participants</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />HD video & audio</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Screen sharing</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Basic integrations</li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Up to 25 participants
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  HD video & audio
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Screen sharing
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Basic integrations
+                </li>
               </ul>
               <Button className="w-full">Start Free Trial</Button>
             </Card>
@@ -384,13 +406,30 @@ export default function LandingPage() {
               <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500">Most Popular</Badge>
               <h3 className="text-2xl font-bold mb-2">Professional</h3>
               <p className="text-gray-600 mb-6">For growing organizations</p>
-              <div className="text-4xl font-bold mb-6">$19<span className="text-lg text-gray-500">/user/month</span></div>
+              <div className="text-4xl font-bold mb-6">
+                $19<span className="text-lg text-gray-500">/user/month</span>
+              </div>
               <ul className="space-y-3 mb-8 text-left">
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Up to 100 participants</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Recording & transcription</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Whiteboard collaboration</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Advanced integrations</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Analytics dashboard</li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Up to 100 participants
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Recording & transcription
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Whiteboard collaboration
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Advanced integrations
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Analytics dashboard
+                </li>
               </ul>
               <Button className="w-full bg-blue-600 hover:bg-blue-700">Start Free Trial</Button>
             </Card>
@@ -400,13 +439,30 @@ export default function LandingPage() {
               <p className="text-gray-600 mb-6">For large organizations</p>
               <div className="text-4xl font-bold mb-6">Custom</div>
               <ul className="space-y-3 mb-8 text-left">
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Unlimited participants</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Enterprise SSO</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Advanced security</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Dedicated support</li>
-                <li className="flex items-center"><CheckCircle className="w-5 h-5 text-green-500 mr-2" />Custom integrations</li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Unlimited participants
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Enterprise SSO
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Advanced security
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Dedicated support
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                  Custom integrations
+                </li>
               </ul>
-              <Button variant="outline" className="w-full bg-transparent">Contact Sales</Button>
+              <Button variant="outline" className="w-full bg-transparent">
+                Contact Sales
+              </Button>
             </Card>
           </div>
         </div>
@@ -481,42 +537,88 @@ export default function LandingPage() {
                 </div>
                 <span className="text-xl font-bold">Meetspace</span>
               </div>
-              <p className="text-gray-400">
-                The integrable meeting platform for modern organizations.
-              </p>
+              <p className="text-gray-400">The integrable meeting platform for modern organizations.</p>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">Features</a></li>
-                <li><a href="#" className="hover:text-white">Integrations</a></li>
-                <li><a href="#" className="hover:text-white">API</a></li>
-                <li><a href="#" className="hover:text-white">Security</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Integrations
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    API
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Security
+                  </a>
+                </li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">About</a></li>
-                <li><a href="#" className="hover:text-white">Careers</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Careers
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Blog
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Contact
+                  </a>
+                </li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white">Help Center</a></li>
-                <li><a href="#" className="hover:text-white">Documentation</a></li>
-                <li><a href="#" className="hover:text-white">Status</a></li>
-                <li><a href="#" className="hover:text-white">Community</a></li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Help Center
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Documentation
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Status
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white">
+                    Community
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
             <p>&copy; 2024 Meetspace. All rights reserved.</p>
           </div>
