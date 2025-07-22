@@ -1,15 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { MeetingProvider } from "@videosdk.live/react-sdk"
 import { PreMeetingLobby } from "./PreMeetingLobby"
 import { WaitingRoom } from "./WaitingRoom"
 import { HostView } from "./HostView"
-import { GuestView } from "./GuestView"
 
 type MeetingState = "lobby" | "waiting" | "joined"
-type UserRole = "host" | "guest"
 
 interface LobbySettings {
   displayName: string
@@ -23,7 +21,6 @@ interface LobbySettings {
 export function MeetingRoom() {
   const searchParams = useSearchParams()
   const [meetingState, setMeetingState] = useState<MeetingState>("lobby")
-  const [userRole, setUserRole] = useState<UserRole>("guest")
   const [lobbySettings, setLobbySettings] = useState<LobbySettings>({
     displayName: searchParams?.get("name") || "Anonymous",
     audioEnabled: true,
@@ -33,35 +30,32 @@ export function MeetingRoom() {
   const token = searchParams?.get("token")
   const meetingId = searchParams?.get("roomid")
 
-  useEffect(() => {
-    if (!token || !meetingId) {
-      console.error("Missing required parameters: token and roomid")
-    }
-  }, [token, meetingId])
-
   const handleJoinFromLobby = (settings: LobbySettings) => {
     setLobbySettings(settings)
     setMeetingState("waiting")
   }
 
-  const handleMeetingJoined = (role: UserRole) => {
-    setUserRole(role)
+  const handleMeetingJoined = () => {
+    console.log("Meeting joined successfully")
     setMeetingState("joined")
   }
 
   const handleLeaveMeeting = () => {
     setMeetingState("lobby")
-    setUserRole("guest")
   }
 
   if (!token || !meetingId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Meeting Link</h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             Please check your meeting URL and ensure it includes both token and roomid parameters.
           </p>
+          <div className="text-sm text-gray-500 bg-gray-100 p-4 rounded-lg">
+            <p className="font-medium mb-2">Expected format:</p>
+            <code className="text-xs break-all">/meeting?token=YOUR_JWT_TOKEN&roomid=YOUR_ROOM_ID</code>
+          </div>
         </div>
       </div>
     )
@@ -83,11 +77,9 @@ export function MeetingRoom() {
       token={token}
     >
       {meetingState === "waiting" ? (
-        <WaitingRoom onMeetingJoined={handleMeetingJoined} onLeaveMeeting={handleLeaveMeeting} userRole={userRole} />
-      ) : userRole === "host" ? (
-        <HostView onLeaveMeeting={handleLeaveMeeting} />
+        <WaitingRoom onMeetingJoined={handleMeetingJoined} onLeaveMeeting={handleLeaveMeeting} />
       ) : (
-        <GuestView onLeaveMeeting={handleLeaveMeeting} />
+        <HostView onLeaveMeeting={handleLeaveMeeting} />
       )}
     </MeetingProvider>
   )
