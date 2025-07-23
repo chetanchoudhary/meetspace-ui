@@ -4,189 +4,167 @@ import { useState } from "react"
 import { useMeeting } from "@videosdk.live/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { ParticipantGrid } from "./ParticipantGrid"
-import { ChatPanel } from "./ChatPanel"
 import { ParticipantsList } from "./ParticipantsList"
+import { ChatPanel } from "./ChatPanel"
 import { Whiteboard } from "./Whiteboard"
-import { ScreenShareView } from "./ScreenShareView"
 import { ScreenShareControls } from "./ScreenShareControls"
 import { ScreenShareNotification } from "./ScreenShareNotification"
 import {
-  Video,
-  VideoOff,
   Mic,
   MicOff,
-  PhoneOff,
+  Video,
+  VideoOff,
+  Phone,
   Users,
   MessageSquare,
   PenTool,
-  Settings,
-  MoreVertical,
+  RepeatIcon as Record,
+  StopCircle,
+  Crown,
 } from "lucide-react"
 
-interface HostViewProps {
-  onLeaveMeeting: () => void
-}
-
-export function HostView({ onLeaveMeeting }: HostViewProps) {
-  const [activePanel, setActivePanel] = useState<"participants" | "chat" | "whiteboard" | null>(null)
-  const [showScreenShare, setShowScreenShare] = useState(false)
+export function HostView() {
+  const [activePanel, setActivePanel] = useState<"participants" | "chat" | "whiteboard">("participants")
+  const [isRecording, setIsRecording] = useState(false)
 
   const {
     leave,
     toggleMic,
     toggleWebcam,
-    localMicOn,
-    localWebcamOn,
-    participants,
-    presenterId,
-    localParticipant,
+    toggleScreenShare,
     startRecording,
     stopRecording,
-    recordingState,
-  } = useMeeting({
-    onMeetingLeft: () => {
-      console.log("Host left meeting")
-      onLeaveMeeting()
-    },
-    onParticipantJoined: (participant) => {
-      console.log("Participant joined:", participant.displayName)
-    },
-    onParticipantLeft: (participant) => {
-      console.log("Participant left:", participant.displayName)
-    },
-    onPresenterChanged: (presenterId) => {
-      console.log("Presenter changed:", presenterId)
-      setShowScreenShare(!!presenterId)
-    },
-    onRecordingStateChanged: (data) => {
-      console.log("Recording state changed:", data)
-    },
-  })
+    localParticipant,
+    participants,
+    meetingId,
+  } = useMeeting()
 
-  const handleLeaveMeeting = () => {
-    leave()
+  const handleStartRecording = () => {
+    startRecording()
+    setIsRecording(true)
   }
 
-  const handleToggleRecording = () => {
-    if (recordingState === "RECORDING_STARTED") {
-      stopRecording()
-    } else {
-      startRecording()
-    }
+  const handleStopRecording = () => {
+    stopRecording()
+    setIsRecording(false)
   }
 
-  const participantCount = Object.keys(participants).length + 1 // +1 for local participant
-  const isRecording = recordingState === "RECORDING_STARTED"
+  const participantCount = participants ? participants.size + 1 : 1
 
   return (
-    <div className="flex h-screen bg-gray-900">
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="bg-gray-800 border-b border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Badge className="bg-green-600">Host</Badge>
-              <div className="text-white">
-                <h2 className="font-semibold">{localParticipant?.displayName || "Host"}</h2>
-                <p className="text-sm text-gray-400">{participantCount} participants</p>
-              </div>
-              {isRecording && (
-                <Badge className="bg-red-600 animate-pulse">
-                  <div className="w-2 h-2 bg-white rounded-full mr-2"></div>
-                  Recording
-                </Badge>
-              )}
-            </div>
+    <div className="h-screen bg-gray-900 flex flex-col">
+      {/* Header */}
+      <div className="bg-gray-800 border-b border-gray-700 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <Button onClick={handleToggleRecording} variant={isRecording ? "destructive" : "secondary"} size="sm">
-                {isRecording ? "Stop Recording" : "Start Recording"}
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
+              <Crown className="w-5 h-5 text-yellow-500" />
+              <h1 className="text-xl font-bold text-white">Host Dashboard</h1>
             </div>
+            <Badge variant="outline" className="border-blue-500 text-blue-400">
+              Meeting ID: {meetingId}
+            </Badge>
+            <Badge variant="outline" className="border-green-500 text-green-400">
+              <Users className="w-3 h-3 mr-1" />
+              {participantCount} participants
+            </Badge>
           </div>
-        </div>
 
-        {/* Screen Share Notification */}
-        {presenterId && <ScreenShareNotification presenterId={presenterId} />}
+          <div className="flex items-center space-x-2">
+            {/* Recording Controls */}
+            {!isRecording ? (
+              <Button onClick={handleStartRecording} size="sm" className="bg-red-600 hover:bg-red-700">
+                <Record className="w-4 h-4 mr-2" />
+                Start Recording
+              </Button>
+            ) : (
+              <Button onClick={handleStopRecording} size="sm" variant="destructive">
+                <StopCircle className="w-4 h-4 mr-2" />
+                Stop Recording
+              </Button>
+            )}
 
-        {/* Video Area */}
-        <div className="flex-1 relative">
-          {showScreenShare && presenterId ? (
-            <ScreenShareView presenterId={presenterId} />
-          ) : (
-            <ParticipantGrid participants={participants} localParticipant={localParticipant} />
-          )}
-        </div>
-
-        {/* Controls Bar */}
-        <div className="bg-gray-800 border-t border-gray-700 p-4">
-          <div className="flex items-center justify-center space-x-4">
-            <Button
-              onClick={toggleMic}
-              variant={localMicOn ? "default" : "secondary"}
-              size="lg"
-              className={localMicOn ? "bg-gray-600 hover:bg-gray-700" : "bg-red-600 hover:bg-red-700"}
-            >
-              {localMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-            </Button>
-
-            <Button
-              onClick={toggleWebcam}
-              variant={localWebcamOn ? "default" : "secondary"}
-              size="lg"
-              className={localWebcamOn ? "bg-gray-600 hover:bg-gray-700" : "bg-red-600 hover:bg-red-700"}
-            >
-              {localWebcamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-            </Button>
-
-            <ScreenShareControls />
-
-            <Button
-              onClick={() => setActivePanel(activePanel === "participants" ? null : "participants")}
-              variant={activePanel === "participants" ? "default" : "secondary"}
-              size="lg"
-            >
-              <Users className="w-5 h-5" />
-            </Button>
-
-            <Button
-              onClick={() => setActivePanel(activePanel === "chat" ? null : "chat")}
-              variant={activePanel === "chat" ? "default" : "secondary"}
-              size="lg"
-            >
-              <MessageSquare className="w-5 h-5" />
-            </Button>
-
-            <Button
-              onClick={() => setActivePanel(activePanel === "whiteboard" ? null : "whiteboard")}
-              variant={activePanel === "whiteboard" ? "default" : "secondary"}
-              size="lg"
-            >
-              <PenTool className="w-5 h-5" />
-            </Button>
-
-            <Button onClick={handleLeaveMeeting} variant="destructive" size="lg">
-              <PhoneOff className="w-5 h-5" />
+            <Button onClick={leave} size="sm" variant="destructive">
+              <Phone className="w-4 h-4 mr-2" />
+              End Meeting
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Side Panel */}
-      {activePanel && (
-        <div className="w-80 bg-gray-800 border-l border-gray-700">
-          {activePanel === "participants" && <ParticipantsList participants={participants} isHost={true} />}
-          {activePanel === "chat" && <ChatPanel />}
-          {activePanel === "whiteboard" && <Whiteboard />}
+      <div className="flex-1 flex">
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          {/* Screen Share Notification */}
+          <ScreenShareNotification />
+
+          {/* Video Grid */}
+          <div className="flex-1 p-4">
+            <ParticipantGrid />
+          </div>
+
+          {/* Controls */}
+          <div className="bg-gray-800 border-t border-gray-700 p-4">
+            <div className="flex items-center justify-center space-x-4">
+              <Button onClick={toggleMic} variant={localParticipant?.micOn ? "default" : "destructive"} size="lg">
+                {localParticipant?.micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+              </Button>
+
+              <Button onClick={toggleWebcam} variant={localParticipant?.webcamOn ? "default" : "destructive"} size="lg">
+                {localParticipant?.webcamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+              </Button>
+
+              <ScreenShareControls />
+
+              <Separator orientation="vertical" className="h-8" />
+
+              <Button
+                onClick={() => setActivePanel("participants")}
+                variant={activePanel === "participants" ? "default" : "outline"}
+                size="sm"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Participants
+              </Button>
+
+              <Button
+                onClick={() => setActivePanel("chat")}
+                variant={activePanel === "chat" ? "default" : "outline"}
+                size="sm"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Chat
+              </Button>
+
+              <Button
+                onClick={() => setActivePanel("whiteboard")}
+                variant={activePanel === "whiteboard" ? "default" : "outline"}
+                size="sm"
+              >
+                <PenTool className="w-4 h-4 mr-2" />
+                Whiteboard
+              </Button>
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* Side Panel */}
+        <div className="w-80 bg-gray-800 border-l border-gray-700">
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-white capitalize">{activePanel}</h2>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              {activePanel === "participants" && <ParticipantsList />}
+              {activePanel === "chat" && <ChatPanel />}
+              {activePanel === "whiteboard" && <Whiteboard />}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

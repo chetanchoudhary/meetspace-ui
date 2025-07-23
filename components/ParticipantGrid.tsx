@@ -21,9 +21,13 @@ function ParticipantTile({ participantId, isLocal = false }: ParticipantTileProp
   useEffect(() => {
     if (videoRef.current && webcamStream) {
       const videoObj = videoRef.current
-      if (videoObj.srcObject !== webcamStream) {
+
+      // Check if webcamStream is a valid MediaStream
+      if (webcamStream instanceof MediaStream && videoObj.srcObject !== webcamStream) {
         videoObj.srcObject = webcamStream
-        videoObj.play().catch(console.error)
+        videoObj.play().catch((error) => {
+          console.error("Error playing video:", error)
+        })
       }
     }
   }, [webcamStream])
@@ -38,7 +42,7 @@ function ParticipantTile({ participantId, isLocal = false }: ParticipantTileProp
   return (
     <Card className="relative bg-gray-800 border-gray-700 overflow-hidden aspect-video">
       {/* Video or Avatar */}
-      {webcamOn && webcamStream ? (
+      {webcamOn && webcamStream instanceof MediaStream ? (
         <video ref={videoRef} autoPlay playsInline muted={isLocal} className="w-full h-full object-cover" />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gray-700">
@@ -94,7 +98,7 @@ export function ParticipantGrid() {
   const { localParticipant, participants } = useMeeting()
 
   // Get all participants including local
-  const allParticipants = [{ id: "local", ...localParticipant }, ...Array.from(participants.values())]
+  const allParticipants = [{ id: "local", ...localParticipant }, ...Array.from(participants?.values() || [])]
 
   // Separate screen sharing participants
   const screenSharingParticipants = allParticipants.filter((p) => p.screenShareOn)
