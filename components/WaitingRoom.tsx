@@ -3,43 +3,79 @@
 import { useState, useEffect } from "react"
 import { useMeeting } from "@videosdk.live/react-sdk"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Video, VideoOff, Mic, MicOff, Users, Clock, Wifi } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Loader2, Video, VideoOff, Mic, MicOff, Users, Clock } from "lucide-react"
 
-export function WaitingRoom() {
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "failed">("connecting")
+interface WaitingRoomProps {
+  onMeetingJoined: () => void
+  onLeaveMeeting: () => void
+}
+
+export function WaitingRoom({ onMeetingJoined, onLeaveMeeting }: WaitingRoomProps) {
+  const [isJoining, setIsJoining] = useState(false)
+  const [waitingForApproval, setWaitingForApproval] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
   const [waitTime, setWaitTime] = useState(0)
 
-  const { join, leave, toggleMic, toggleWebcam, localMicOn, localWebcamOn, meetingId, localParticipant } = useMeeting({
-    onMeetingJoined: () => {
-      console.log("Meeting joined from WaitingRoom")
-      setConnectionStatus("connected")
-    },
-    onMeetingLeft: () => {
-      console.log("Meeting left from WaitingRoom")
-    },
-    onError: (error) => {
-      console.error("Meeting error in WaitingRoom:", error)
-      setConnectionStatus("failed")
-    },
-  })
+  const { join, leave, localMicOn, localWebcamOn, toggleMic, toggleWebcam, meetingId, participants, localParticipant } =
+    useMeeting({
+      onMeetingJoined: () => {
+        console.log("onMeetingJoined event fired")
+        setIsJoining(false)
+        setWaitingForApproval(false)
+        onMeetingJoined()
+      },
+      onMeetingLeft: () => {
+        console.log("onMeetingLeft event fired")
+        onLeaveMeeting()
+      },
+      onError: (error) => {
+        console.error("Meeting error:", error)
+        setIsJoining(false)
+        setWaitingForApproval(false)
+        setErrorMessage("Failed to join meeting. Please check your connection and try again.")
+      },
+      onEntryResponded: (decision: string) => {
+        console.log("Entry response:", decision)
+        if (decision === "denied") {
+          setWaitingForApproval(false)
+          setIsJoining(false)
+          setErrorMessage("Your request to join was denied by the host.")
+        } else if (decision === "allowed") {
+          setWaitingForApproval(false)
+          // Don't call onMeetingJoined here, wait for the actual onMeetingJoined event
+        }
+      },
+      onParticipantJoined: (participant) => {
+        console.log("Participant joined:", participant)
+      },
+    })
 
+  // Timer for waiting time
   useEffect(() => {
-    // Auto-join when component mounts
-    if (join) {
-      console.log("Auto-joining meeting...")
-      join()
+    let interval: NodeJS.Timeout
+    if (waitingForApproval) {
+      interval = setInterval(() => {
+        setWaitTime((prev) => prev + 1)
+      }, 1000)
     }
-  }, [join])
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [waitingForApproval])
 
-  useEffect(() => {
-    // Start wait time counter
-    const interval = setInterval(() => {
-      setWaitTime((prev) => prev + 1)
-    }, 1000)
+  const handleJoin = () => {
+    setIsJoining(true)
+    setErrorMessage("")
+    setWaitTime(0)
 
-    return () => clearInterval(interval)
-  }, [])
+    console.log("Attempting to join meeting...")
+    join()
+  }
+
+  const handleLeave = () => {
+    leave()
+  }
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -47,123 +83,151 @@ export function WaitingRoom() {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  const handleLeaveMeeting = () => {
-    if (leave) {
-      leave()
-    }
+  const participantCount = Object.keys(participants || {}).length
+
+  // Show waiting for approval screen when waiting
+  if (waitingForApproval) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+        <Card className="p-8 bg-gray-800 border-gray-700 text-center max-w-md">
+          <div className="mb-6">
+            <Loader2 className="w-12 h-12 mx-auto text-blue-500 animate-spin mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Waiting for Host Approval</h2>
+            <p className="text-gray-400 mb-4">The host will review your request to join the meeting. Please wait...</p>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-center space-x-2 text-gray-300">
+                <Clock className="w-4 h-4" />
+                <span>Waiting time: {formatTime(waitTime)}</span>
+              </div>
+
+              <div className="p-3 bg-gray-700 rounded-lg">
+                <div className="flex justify-center space-x-4 mt-2">
+                  <div className="flex items-center space-x-1">
+                    {localMicOn ? (
+                      <Mic className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <MicOff className="w-3 h-3 text-red-400" />
+                    )}
+                    <span className="text-xs">Mic</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {localWebcamOn ? (
+                      <Video className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <VideoOff className="w-3 h-3 text-red-400" />
+                    )}
+                    <span className="text-xs">Camera</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleLeave}
+            variant="outline"
+            className="w-full border-gray-600 text-gray-300 hover:bg-gray-700 bg-transparent"
+          >
+            Cancel
+          </Button>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
-          <CardContent className="p-8">
-            <div className="text-center space-y-6">
-              {/* Status Indicator */}
-              <div className="flex items-center justify-center space-x-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    connectionStatus === "connecting"
-                      ? "bg-yellow-500 animate-pulse"
-                      : connectionStatus === "connected"
-                        ? "bg-green-500"
-                        : "bg-red-500"
-                  }`}
-                ></div>
-                <span className="text-gray-300 text-sm">
-                  {connectionStatus === "connecting" && "Connecting to meeting..."}
-                  {connectionStatus === "connected" && "Connected - Joining meeting room"}
-                  {connectionStatus === "failed" && "Connection failed"}
-                </span>
-              </div>
+    <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <Card className="p-8 bg-gray-800 border-gray-700 text-center max-w-md">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">Join Meeting</h2>
+          <p className="text-gray-400 mb-4">Ready to join the meeting</p>
 
-              {/* Meeting Info */}
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-white">Joining Meeting</h2>
-                <div className="flex items-center justify-center space-x-4 text-gray-400">
-                  <div className="flex items-center space-x-1">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">Meeting ID: {meetingId}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm">Wait time: {formatTime(waitTime)}</span>
-                  </div>
+          <div className="space-y-3">
+            <div className="p-3 bg-gray-700 rounded-lg">
+              <div className="text-sm">
+                <div className="mb-2">
+                  <p className="text-gray-400">Meeting ID</p>
+                  <p className="text-white font-mono text-xs">{meetingId}</p>
                 </div>
-              </div>
-
-              {/* Participant Info */}
-              {localParticipant && (
-                <div className="bg-gray-700/50 rounded-lg p-4">
-                  <p className="text-gray-300 text-sm mb-2">You're joining as:</p>
-                  <p className="text-white font-semibold">{localParticipant.displayName}</p>
-                </div>
-              )}
-
-              {/* Connection Status */}
-              <div className="flex justify-center">
-                {connectionStatus === "connecting" && (
-                  <div className="flex items-center space-x-2 text-yellow-400">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-400"></div>
-                    <span>Establishing connection...</span>
+                {localParticipant && (
+                  <div>
+                    <p className="text-gray-400">Name</p>
+                    <p className="text-white font-medium">{localParticipant.displayName}</p>
                   </div>
                 )}
-                {connectionStatus === "connected" && (
-                  <div className="flex items-center space-x-2 text-green-400">
-                    <Wifi className="w-5 h-5" />
-                    <span>Connected successfully</span>
-                  </div>
-                )}
-                {connectionStatus === "failed" && (
-                  <div className="text-red-400">
-                    <p>Failed to connect to the meeting</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Media Controls */}
-              <div className="flex justify-center space-x-4">
-                <Button
-                  onClick={toggleMic}
-                  variant={localMicOn ? "default" : "secondary"}
-                  size="lg"
-                  className={localMicOn ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
-                >
-                  {localMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                </Button>
-
-                <Button
-                  onClick={toggleWebcam}
-                  variant={localWebcamOn ? "default" : "secondary"}
-                  size="lg"
-                  className={localWebcamOn ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
-                >
-                  {localWebcamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-                </Button>
-              </div>
-
-              {/* Action Button */}
-              <div className="pt-4">
-                <Button
-                  onClick={handleLeaveMeeting}
-                  variant="outline"
-                  className="border-gray-600 text-gray-300 hover:bg-gray-700 bg-transparent"
-                >
-                  Leave Meeting
-                </Button>
-              </div>
-
-              {/* Help Text */}
-              <div className="text-xs text-gray-500 max-w-md mx-auto">
-                <p>
-                  If you're having trouble connecting, please check your internet connection and try refreshing the
-                  page.
-                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            {participantCount > 0 && (
+              <div className="flex items-center justify-center space-x-2 text-gray-300">
+                <Users className="w-4 h-4" />
+                <span>
+                  {participantCount} participant{participantCount !== 1 ? "s" : ""} in meeting
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-center space-x-4">
+              <div className="flex items-center space-x-1">
+                {localMicOn ? <Mic className="w-4 h-4 text-green-400" /> : <MicOff className="w-4 h-4 text-red-400" />}
+                <span className="text-xs text-gray-300">Microphone</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                {localWebcamOn ? (
+                  <Video className="w-4 h-4 text-green-400" />
+                ) : (
+                  <VideoOff className="w-4 h-4 text-red-400" />
+                )}
+                <span className="text-xs text-gray-300">Camera</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg">
+            <p className="text-red-300 text-sm">{errorMessage}</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex space-x-2">
+            <Button onClick={toggleMic} variant={localMicOn ? "default" : "secondary"} size="sm" className="flex-1">
+              {localMicOn ? <Mic className="w-4 h-4 mr-2" /> : <MicOff className="w-4 h-4 mr-2" />}
+              {localMicOn ? "Mute" : "Unmute"}
+            </Button>
+            <Button
+              onClick={toggleWebcam}
+              variant={localWebcamOn ? "default" : "secondary"}
+              size="sm"
+              className="flex-1"
+            >
+              {localWebcamOn ? <Video className="w-4 h-4 mr-2" /> : <VideoOff className="w-4 h-4 mr-2" />}
+              {localWebcamOn ? "Stop Video" : "Start Video"}
+            </Button>
+          </div>
+
+          <Button onClick={handleJoin} disabled={isJoining} className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
+            {isJoining ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Joining Meeting...
+              </>
+            ) : (
+              "Join Meeting"
+            )}
+          </Button>
+
+          <Button
+            onClick={onLeaveMeeting}
+            variant="outline"
+            className="w-full border-gray-600 text-gray-300 hover:bg-gray-700 bg-transparent"
+          >
+            Back to Lobby
+          </Button>
+        </div>
+      </Card>
     </div>
   )
 }

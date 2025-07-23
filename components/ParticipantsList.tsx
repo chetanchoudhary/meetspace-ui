@@ -1,120 +1,93 @@
 "use client"
-import { useParticipant } from "@videosdk.live/react-sdk"
+
+import { useMeeting } from "@videosdk.live/react-sdk"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { Users, Mic, MicOff, Video, VideoOff, MoreVertical, UserX, Volume2, Crown } from "lucide-react"
+import { Mic, MicOff, Video, VideoOff, Crown, MoreVertical, UserX } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-interface ParticipantItemProps {
-  participantId: string
-  isHost?: boolean
-}
-
-function ParticipantItem({ participantId, isHost = false }: ParticipantItemProps) {
-  const { displayName, micOn, webcamOn, isLocal } = useParticipant(participantId)
-
-  return (
-    <div className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-lg transition-colors">
-      <div className="flex items-center space-x-3">
-        <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-medium">{displayName?.charAt(0)?.toUpperCase() || "?"}</span>
-        </div>
-
-        <div className="flex-1">
-          <div className="flex items-center space-x-2">
-            <span className="text-white text-sm font-medium truncate">{displayName || "Unknown"}</span>
-            {isLocal && (
-              <Badge variant="secondary" className="bg-blue-600 text-white text-xs">
-                You
-              </Badge>
-            )}
-            {isHost && <Crown className="w-3 h-3 text-yellow-400" />}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        {/* Media Status */}
-        <div className="flex items-center space-x-1">
-          {micOn ? <Mic className="w-4 h-4 text-green-400" /> : <MicOff className="w-4 h-4 text-red-400" />}
-          {webcamOn ? <Video className="w-4 h-4 text-green-400" /> : <VideoOff className="w-4 h-4 text-red-400" />}
-        </div>
-
-        {/* Actions Menu */}
-        {!isLocal && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-gray-800 border-gray-700">
-              <DropdownMenuItem className="text-gray-300 hover:bg-gray-700">
-                <Volume2 className="w-4 h-4 mr-2" />
-                Mute for me
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-gray-300 hover:bg-gray-700">
-                <MicOff className="w-4 h-4 mr-2" />
-                Mute participant
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-red-400 hover:bg-gray-700">
-                <UserX className="w-4 h-4 mr-2" />
-                Remove participant
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-    </div>
-  )
-}
-
 interface ParticipantsListProps {
-  participants: Map<string, any> | undefined
+  participants: Map<string, any>
+  isHost: boolean
 }
 
-export function ParticipantsList({ participants }: ParticipantsListProps) {
-  const participantIds = participants ? Array.from(participants.keys()) : []
-  const participantCount = participantIds.length
+export function ParticipantsList({ participants, isHost }: ParticipantsListProps) {
+  const { meeting } = useMeeting()
+  const participantArray = Array.from(participants.values())
+
+  const handleRemoveParticipant = (participantId: string) => {
+    if (isHost && meeting) {
+      // VideoSDK method to remove participant
+      meeting.remove(participantId)
+    }
+  }
 
   return (
-    <Card className="h-full bg-gray-800 border-gray-700 flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-white flex items-center justify-between">
-          <div className="flex items-center">
-            <Users className="w-5 h-5 mr-2" />
-            Participants
-          </div>
-          <Badge variant="secondary" className="bg-gray-700 text-gray-300">
-            {participantCount}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b border-gray-700">
+        <h3 className="font-semibold text-white">Participants ({participantArray.length})</h3>
+      </div>
 
-      <CardContent className="flex-1 p-0">
-        <ScrollArea className="h-full">
-          <div className="px-4 pb-4">
-            {participantIds.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No participants</p>
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-3">
+          {participantArray.map((participant) => (
+            <div key={participant.id} className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-white">
+                    {participant.displayName?.charAt(0)?.toUpperCase() || "U"}
+                  </span>
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-white">{participant.displayName || "Unknown"}</span>
+                    {participant.isLocal && (
+                      <Badge variant="outline" className="text-xs">
+                        You
+                      </Badge>
+                    )}
+                    {isHost && participant.id === participantArray[0]?.id && (
+                      <Crown className="w-3 h-3 text-yellow-400" />
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-1 mt-1">
+                    {participant.micOn ? (
+                      <Mic className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <MicOff className="w-3 h-3 text-red-400" />
+                    )}
+                    {participant.webcamOn ? (
+                      <Video className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <VideoOff className="w-3 h-3 text-red-400" />
+                    )}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-1">
-                {participantIds.map((participantId, index) => (
-                  <ParticipantItem
-                    key={participantId}
-                    participantId={participantId}
-                    isHost={index === 0} // First participant is typically the host
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+
+              {/* Host Controls */}
+              {isHost && !participant.isLocal && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleRemoveParticipant(participant.id)} className="text-red-400">
+                      <UserX className="w-4 h-4 mr-2" />
+                      Remove from meeting
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
   )
 }

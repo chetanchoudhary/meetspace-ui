@@ -3,20 +3,22 @@
 import { Suspense } from "react"
 import { MeetingRoom } from "@/components/MeetingRoom"
 
-function MeetingPageContent() {
+function MeetingContent() {
   return <MeetingRoom />
 }
 
 export default function MeetingPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-          <div className="text-white">Loading...</div>
-        </div>
-      }
-    >
-      <MeetingPageContent />
-    </Suspense>
+    <div className="min-h-screen bg-gray-100">
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-lg">Loading meeting...</div>
+          </div>
+        }
+      >
+        <MeetingContent />
+      </Suspense>
+    </div>
   )
 }
