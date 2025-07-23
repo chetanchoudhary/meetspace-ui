@@ -6,8 +6,9 @@ import { useState, useEffect, useRef } from "react"
 import { usePubSub } from "@videosdk.live/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Send } from "lucide-react"
+import { Send, MessageSquare } from "lucide-react"
 
 interface ChatMessage {
   id: string
@@ -22,82 +23,95 @@ export function ChatPanel() {
   const [newMessage, setNewMessage] = useState("")
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  const { publish } = usePubSub("CHAT", {
-    onMessageReceived: (data: any) => {
+  const { publish, messages: pubSubMessages } = usePubSub("CHAT", {
+    onMessageReceived: (data) => {
       const chatMessage: ChatMessage = {
         id: Date.now().toString(),
         senderId: data.senderId,
         senderName: data.senderName,
         message: data.message,
-        timestamp: new Date(data.timestamp),
+        timestamp: new Date(),
       }
       setMessages((prev) => [...prev, chatMessage])
     },
   })
 
   useEffect(() => {
-    // Auto scroll to bottom when new message arrives
+    // Auto-scroll to bottom when new messages arrive
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
     if (newMessage.trim()) {
-      const messageData = {
-        message: newMessage.trim(),
-        timestamp: new Date().toISOString(),
-        senderId: "local", // This would be the actual participant ID
-        senderName: "You", // This would be the actual participant name
-      }
-
-      publish(messageData, { persist: true })
+      publish(
+        {
+          message: newMessage.trim(),
+          timestamp: new Date().toISOString(),
+        },
+        { persist: true },
+      )
       setNewMessage("")
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className="space-y-1">
-              <div className="flex items-center space-x-2 text-xs text-gray-400">
-                <span className="font-medium">{message.senderName}</span>
-                <span>{message.timestamp.toLocaleTimeString()}</span>
-              </div>
-              <div className="text-sm text-white bg-gray-700 rounded-lg p-2">{message.message}</div>
-            </div>
-          ))}
-          {messages.length === 0 && (
-            <div className="text-center text-gray-400 text-sm">No messages yet. Start the conversation!</div>
-          )}
-        </div>
-      </ScrollArea>
+    <Card className="h-full bg-gray-800 border-gray-700 flex flex-col">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-white flex items-center">
+          <MessageSquare className="w-5 h-5 mr-2" />
+          Chat
+        </CardTitle>
+      </CardHeader>
 
-      {/* Input */}
-      <div className="p-4 border-t border-gray-700">
-        <div className="flex space-x-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
-            className="flex-1 bg-gray-700 border-gray-600 text-white"
-          />
-          <Button onClick={handleSendMessage} disabled={!newMessage.trim()} size="sm">
-            <Send className="w-4 h-4" />
-          </Button>
+      <CardContent className="flex-1 flex flex-col p-0">
+        {/* Messages Area */}
+        <ScrollArea ref={scrollAreaRef} className="flex-1 px-4">
+          <div className="space-y-3 py-2">
+            {messages.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No messages yet</p>
+                <p className="text-xs">Start the conversation!</p>
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-blue-400">{msg.senderName}</span>
+                    <span className="text-xs text-gray-500">{formatTime(msg.timestamp)}</span>
+                  </div>
+                  <div className="bg-gray-700 rounded-lg px-3 py-2">
+                    <p className="text-gray-200 text-sm break-words">{msg.message}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Message Input */}
+        <div className="border-t border-gray-700 p-4">
+          <form onSubmit={handleSendMessage} className="flex space-x-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+              maxLength={500}
+            />
+            <Button type="submit" disabled={!newMessage.trim()} size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Send className="w-4 h-4" />
+            </Button>
+          </form>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

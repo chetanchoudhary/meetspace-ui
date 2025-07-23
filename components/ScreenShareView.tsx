@@ -1,106 +1,105 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useParticipant } from "@videosdk.live/react-sdk"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Maximize2, Minimize2, X, Monitor } from "lucide-react"
+import { Monitor, Maximize2, Minimize2, User } from "lucide-react"
+import { useState } from "react"
 
 interface ScreenShareViewProps {
-  participantId: string
-  isFullscreen?: boolean
-  onToggleFullscreen?: () => void
-  onClose?: () => void
+  presenterId: string
 }
 
-export function ScreenShareView({
-  participantId,
-  isFullscreen = false,
-  onToggleFullscreen,
-  onClose,
-}: ScreenShareViewProps) {
-  const { displayName, screenShareStream, screenShareOn } = useParticipant(participantId)
-  const screenShareRef = useRef<HTMLVideoElement>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function ScreenShareView({ presenterId }: ScreenShareViewProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const { displayName, screenShareStream, screenShareOn } = useParticipant(presenterId)
 
   useEffect(() => {
-    if (screenShareRef.current && screenShareStream) {
-      const videoObj = screenShareRef.current
-
-      if (videoObj.srcObject !== screenShareStream) {
-        videoObj.srcObject = screenShareStream
-        videoObj.play().catch(console.error)
-      }
-
-      const handleLoadedData = () => setIsLoading(false)
-      const handleError = () => setIsLoading(false)
-
-      videoObj.addEventListener("loadeddata", handleLoadedData)
-      videoObj.addEventListener("error", handleError)
-
-      return () => {
-        videoObj.removeEventListener("loadeddata", handleLoadedData)
-        videoObj.removeEventListener("error", handleError)
+    if (videoRef.current && screenShareStream) {
+      if (screenShareStream instanceof MediaStream) {
+        const videoObj = videoRef.current
+        if (videoObj.srcObject !== screenShareStream) {
+          videoObj.srcObject = screenShareStream
+          videoObj.play().catch((error) => {
+            console.error("Error playing screen share video:", error)
+          })
+        }
       }
     }
   }, [screenShareStream])
 
-  if (!screenShareOn || !screenShareStream) {
-    return null
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return
+
+    if (!isFullscreen) {
+      containerRef.current.requestFullscreen?.()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen?.()
+      setIsFullscreen(false)
+    }
   }
 
-  const containerClasses = isFullscreen
-    ? "fixed inset-0 z-50 bg-black flex items-center justify-center"
-    : "relative w-full h-full"
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
+  }, [])
+
+  if (!screenShareOn || !screenShareStream) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-900 rounded-lg">
+        <div className="text-center text-gray-400">
+          <Monitor className="w-12 h-12 mx-auto mb-4" />
+          <p>No screen share active</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className={containerClasses}>
-      <Card className={`${isFullscreen ? "w-full h-full" : "w-full"} bg-gray-900 border-gray-700 overflow-hidden`}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-3 bg-gray-800 border-b border-gray-700">
-          <div className="flex items-center space-x-2">
-            <Monitor className="w-4 h-4 text-blue-400" />
-            <span className="text-sm font-medium text-white">{displayName} is sharing</span>
-            <Badge variant="secondary" className="bg-blue-600 text-white">
-              Screen Share
-            </Badge>
-          </div>
+    <div ref={containerRef} className="h-full relative group">
+      <Card className="h-full bg-gray-900 border-gray-700 overflow-hidden">
+        <div className="h-full relative">
+          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-contain" />
 
-          <div className="flex items-center space-x-2">
-            {onToggleFullscreen && (
-              <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-gray-400 hover:text-white">
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
-            )}
-
-            {onClose && (
-              <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Screen Share Content */}
-        <div className="relative bg-black">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-              <div className="text-center">
-                <Monitor className="w-12 h-12 mx-auto text-gray-400 mb-2 animate-pulse" />
-                <p className="text-gray-400">Loading screen share...</p>
-              </div>
+          {/* Screen Share Info Overlay */}
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-red-600 text-white">
+                <Monitor className="w-3 h-3 mr-1" />
+                Screen Share
+              </Badge>
+              <Badge variant="secondary" className="bg-gray-800/80 text-white">
+                <User className="w-3 h-3 mr-1" />
+                {displayName || "Unknown"}
+              </Badge>
             </div>
-          )}
 
-          <video
-            ref={screenShareRef}
-            autoPlay
-            playsInline
-            muted
-            className={`w-full ${isFullscreen ? "h-screen object-contain" : "h-64 md:h-96 object-contain"}`}
-            style={{ backgroundColor: "#000" }}
-          />
+            <Button
+              onClick={toggleFullscreen}
+              variant="secondary"
+              size="sm"
+              className="bg-gray-800/80 hover:bg-gray-700/80 text-white"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {/* Presenter Info */}
+          <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-gray-800/80 rounded-lg px-3 py-2">
+              <p className="text-white text-sm font-medium">{displayName || "Unknown"} is presenting</p>
+            </div>
+          </div>
         </div>
       </Card>
     </div>
